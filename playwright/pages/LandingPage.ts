@@ -244,16 +244,11 @@ export class LandingPage {
 
     await openMenu();
 
-    const removeItem = this.page.locator(
-      '[data-ouia-component-id="remove-widget"]',
-    );
-    // PF6 renders DropdownItem as a <li> wrapper plus a <button role="menuitem">.
-    // Don't use `.or(...)` here: it can match both and trigger strict-mode violations.
-    const removeMenuItem = removeItem
-      .first()
-      .getByRole("menuitem", { name: /^remove\b/i })
-      .first()
-      .or(removeItem.first().locator('button[role="menuitem"]').first());
+    const removeMenuItem = this.page
+      .locator(
+        '[data-ouia-component-id="remove-widget"] button[role="menuitem"]',
+      )
+      .first();
     await expect(removeMenuItem).toBeVisible({
       timeout: TIMEOUTS.MENU_VISIBLE,
     });
@@ -262,17 +257,10 @@ export class LandingPage {
     const disabled = await removeMenuItem.isDisabled().catch(() => false);
     if (disabled) {
       const unlockMenuItem = this.page
-        .locator('[data-ouia-component-id="unlock-widget"]')
-        .first()
-        .getByRole("menuitem", { name: /^unlock\b/i })
-        .first()
-        .or(
-          this.page
-            .locator('[data-ouia-component-id="unlock-widget"]')
-            .first()
-            .locator('button[role="menuitem"]')
-            .first(),
-        );
+        .locator(
+          '[data-ouia-component-id="unlock-widget"] button[role="menuitem"]',
+        )
+        .first();
       if (
         await unlockMenuItem
           .isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })
