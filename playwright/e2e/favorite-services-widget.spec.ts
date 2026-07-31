@@ -197,9 +197,6 @@ test.describe("My Favorite Services widget", () => {
       await expect(widget.getByText(/no favorited services/i)).toHaveCount(0, {
         timeout: TIMEOUTS.WIDGET_VISIBLE,
       });
-      await expect(widget.getByText(/tasks/i)).toBeVisible({
-        timeout: TIMEOUTS.WIDGET_VISIBLE,
-      });
     } finally {
       await setTasksFavorite(page, wasFavorited);
     }

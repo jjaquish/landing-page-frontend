@@ -97,11 +97,13 @@ export class LandingPage {
       this.page.getByRole("button", { name: /User Avatar/i }),
     ).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
 
-    // Wait for the widget grid to actually render items.
+    // Best-effort: speed up tests when widgets are present, but don't fail if
+    // the dashboard is empty (e.g. after "close all widgets" removed everything).
     await this.page
       .locator("#widget-layout-container .react-grid-item")
       .first()
-      .waitFor({ state: "visible", timeout: TIMEOUTS.WIDGET_VISIBLE });
+      .waitFor({ state: "visible", timeout: TIMEOUTS.WIDGET_VISIBLE })
+      .catch(() => undefined);
   }
 
   async resetToDefaultLayout(): Promise<void> {
