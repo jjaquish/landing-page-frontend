@@ -3,7 +3,7 @@ import { LandingPage } from "../pages/LandingPage";
 import { TIMEOUTS } from "../constants";
 
 test.describe("Landing page widget layout operations", () => {
-  test.describe.configure({ timeout: 180000 });
+  test.describe.configure({ timeout: TIMEOUTS.TEST_DEFAULT });
 
   async function closeChromeOverlays(page: Page) {
     // Defensive: previous tests may leave chrome overlays/drawers open (services dropdown, etc.),
@@ -14,11 +14,19 @@ test.describe("Landing page widget layout operations", () => {
     const servicesMenu = page.locator(
       '[data-testid="chr-c__find-app-service"]',
     );
-    if (await servicesMenu.isVisible({ timeout: 500 }).catch(() => false)) {
+    if (
+      await servicesMenu
+        .isVisible({ timeout: TIMEOUTS.QUICK_PROBE })
+        .catch(() => false)
+    ) {
       const closeBtn = servicesMenu.getByRole("button", {
         name: /close menu/i,
       });
-      if (await closeBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+      if (
+        await closeBtn
+          .isVisible({ timeout: TIMEOUTS.QUICK_PROBE })
+          .catch(() => false)
+      ) {
         await closeBtn.click();
       } else {
         await page.keyboard.press("Escape").catch(() => undefined);
@@ -26,7 +34,7 @@ test.describe("Landing page widget layout operations", () => {
     }
 
     await expect(servicesMenu)
-      .not.toBeVisible({ timeout: 5000 })
+      .not.toBeVisible({ timeout: TIMEOUTS.OVERLAY_DISMISS })
       .catch(() => undefined);
   }
 
@@ -39,7 +47,11 @@ test.describe("Landing page widget layout operations", () => {
           '[data-ouia-component-id="lock-widget"], [data-ouia-component-id="unlock-widget"], [data-ouia-component-id="remove-widget"]',
         )
         .first();
-      if (await anyItem.isVisible({ timeout: 1500 }).catch(() => false)) {
+      if (
+        await anyItem
+          .isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })
+          .catch(() => false)
+      ) {
         return;
       }
       // Close + retry
@@ -58,7 +70,7 @@ test.describe("Landing page widget layout operations", () => {
   test("closes all the widgets and shows empty dashboard state", async ({
     page,
   }) => {
-    test.setTimeout(300000);
+    test.setTimeout(TIMEOUTS.TEST_EXTENDED);
     const container = page.locator("#widget-layout-container");
     const landing = new LandingPage(page);
 
@@ -90,10 +102,10 @@ test.describe("Landing page widget layout operations", () => {
     const firstTextBefore = await firstWidget.textContent();
 
     await handles.nth(0).dragTo(handles.nth(1));
-    await landing.waitForLayoutPatchOptional(10000);
+    await landing.waitForLayoutPatchOptional(TIMEOUTS.LAYOUT_PATCH_SHORT);
 
     await handles.nth(2).dragTo(handles.nth(1));
-    await landing.waitForLayoutPatchOptional(10000);
+    await landing.waitForLayoutPatchOptional(TIMEOUTS.LAYOUT_PATCH_SHORT);
 
     const firstTextAfter = await page
       .locator(".react-grid-item")
@@ -132,7 +144,7 @@ test.describe("Landing page widget layout operations", () => {
       steps: 10,
     });
     await page.mouse.up();
-    await landing.waitForLayoutPatchOptional(10000);
+    await landing.waitForLayoutPatchOptional(TIMEOUTS.LAYOUT_PATCH_SHORT);
 
     if (beforeCols) {
       await expect
@@ -163,7 +175,7 @@ test.describe("Landing page widget layout operations", () => {
       .first();
     await expect(maximizeItem).toBeVisible({ timeout: TIMEOUTS.MENU_VISIBLE });
     await maximizeItem.click();
-    await landing.waitForLayoutPatchOptional(10000);
+    await landing.waitForLayoutPatchOptional(TIMEOUTS.LAYOUT_PATCH_SHORT);
 
     const after = await widget.boundingBox();
     expect(after?.height).toBeTruthy();
@@ -185,7 +197,7 @@ test.describe("Landing page widget layout operations", () => {
       .locator('[data-ouia-component-id="minimize-widget"]')
       .first()
       .click();
-    await landing.waitForLayoutPatchOptional(10000);
+    await landing.waitForLayoutPatchOptional(TIMEOUTS.LAYOUT_PATCH_SHORT);
 
     const after = await widget.boundingBox();
     expect(after?.height).toBeTruthy();
@@ -239,10 +251,14 @@ test.describe("Landing page widget layout operations", () => {
     const lockStillVisible = await page
       .locator('[data-ouia-component-id="lock-widget"]')
       .first()
-      .isVisible({ timeout: 1500 })
+      .isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })
       .catch(() => false);
 
-    if (await unlockBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+    if (
+      await unlockBtn
+        .isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })
+        .catch(() => false)
+    ) {
       await unlockBtn.click();
       await landing.waitForLayoutPatchOptional(TIMEOUTS.WIDGET_REMOVAL);
       await expect(gridItem).not.toHaveClass(/static/, {

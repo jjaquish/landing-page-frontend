@@ -46,7 +46,7 @@ test.describe("My Favorite Services widget", () => {
       if (
         await c
           .first()
-          .isVisible({ timeout: 1000 })
+          .isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })
           .catch(() => false)
       ) {
         await c
@@ -101,7 +101,11 @@ test.describe("My Favorite Services widget", () => {
       .getByLabel(/(unfavorite|favorite)\s+tasks/i)
       .first();
 
-    if (await starButton.isVisible({ timeout: 1500 }).catch(() => false)) {
+    if (
+      await starButton
+        .isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })
+        .catch(() => false)
+    ) {
       await starButton.click();
     } else {
       await expect(starIconFallback).toBeVisible({
@@ -122,7 +126,7 @@ test.describe("My Favorite Services widget", () => {
             resp.status() < 400
           );
         },
-        { timeout: 20000 },
+        { timeout: TIMEOUTS.WIDGET_REMOVAL },
       )
       .catch(() => undefined);
 
@@ -179,7 +183,7 @@ test.describe("My Favorite Services widget", () => {
 
   test("shows favorites when they are set", async ({ page }) => {
     const landing = new LandingPage(page);
-    test.setTimeout(180000);
+    test.setTimeout(TIMEOUTS.TEST_DEFAULT);
 
     await landing.gotoAndWaitForLayout();
     await landing.resetToDefaultLayout();

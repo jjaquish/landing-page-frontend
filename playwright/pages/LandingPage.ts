@@ -206,7 +206,9 @@ export class LandingPage {
       .catch(() => undefined);
   }
 
-  async waitForLayoutPatchStrict(timeoutMs = 60000): Promise<void> {
+  async waitForLayoutPatchStrict(
+    timeoutMs = TIMEOUTS.WIDGET_VISIBLE,
+  ): Promise<void> {
     await this.page.waitForResponse(
       (resp) => {
         const url = resp.url();
@@ -272,7 +274,9 @@ export class LandingPage {
             .first(),
         );
       if (
-        await unlockMenuItem.isVisible({ timeout: 2000 }).catch(() => false)
+        await unlockMenuItem
+          .isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })
+          .catch(() => false)
       ) {
         await unlockMenuItem.click();
         await this.waitForLayoutPatchOptional(TIMEOUTS.LAYOUT_PATCH);
@@ -285,7 +289,7 @@ export class LandingPage {
 
     const clickRemoveOnce = async () => {
       await removeMenuItem.click();
-      await this.waitForLayoutPatchOptional(15000);
+      await this.waitForLayoutPatchOptional(TIMEOUTS.LAYOUT_PATCH);
     };
 
     await clickRemoveOnce();
@@ -311,7 +315,7 @@ export class LandingPage {
     }
 
     // Ensure it stays gone (guards against "remove before reset finishes" races).
-    await this.page.waitForTimeout(500);
+    await this.page.waitForTimeout(TIMEOUTS.QUICK_PROBE);
     await expect(this.widget(widgetId)).toHaveCount(0, {
       timeout: TIMEOUTS.LAYOUT_RESPONSE,
     });
