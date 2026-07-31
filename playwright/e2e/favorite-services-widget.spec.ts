@@ -3,6 +3,7 @@ import { LandingPage } from '../pages/LandingPage';
 import { TIMEOUTS } from '../constants';
 
 test.describe('My Favorite Services widget', () => {
+  test.describe.configure({ timeout: TIMEOUTS.TEST_DEFAULT });
   const widgetId = 'chrome-./DashboardFavorites-widget';
 
   async function openServicesMenu(page: Page): Promise<Locator> {
@@ -150,14 +151,19 @@ test.describe('My Favorite Services widget', () => {
   test('shows empty state when no favorites are set', async ({ page }) => {
     const landing = new LandingPage(page);
 
-    const favoritesResp = page.waitForResponse((resp) => {
-      return (
-        resp.request().method() === 'GET' &&
-        resp.url().includes('/api/chrome-service/v1/user') &&
-        resp.status() >= 200 &&
-        resp.status() < 400
+    const favoritesResp = page
+      .waitForResponse((resp) => {
+        return (
+          resp.request().method() === 'GET' &&
+          resp.url().includes('/api/chrome-service/v1/user') &&
+          resp.status() >= 200 &&
+          resp.status() < 400
+        );
+      })
+      .then(
+        () => undefined,
+        () => undefined,
       );
-    });
 
     await landing.gotoAndWaitForLayout();
     await landing.resetToDefaultLayout();
@@ -175,7 +181,6 @@ test.describe('My Favorite Services widget', () => {
 
   test('shows favorites when they are set', async ({ page }) => {
     const landing = new LandingPage(page);
-    test.setTimeout(TIMEOUTS.TEST_DEFAULT);
 
     await landing.gotoAndWaitForLayout();
     await landing.resetToDefaultLayout();

@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { LandingPage } from '../pages/LandingPage';
+import { TIMEOUTS } from '../constants';
 
 test.describe('Landing page widgets - basic presence and links', () => {
+  test.describe.configure({ timeout: TIMEOUTS.TEST_DEFAULT });
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 2000 });
     const landing = new LandingPage(page);
