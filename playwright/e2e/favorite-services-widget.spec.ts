@@ -1,5 +1,6 @@
 import { type Locator, type Page, expect, test } from '@playwright/test';
-import { LandingPage, TIMEOUTS } from '../pages/LandingPage';
+import { LandingPage } from '../pages/LandingPage';
+import { TIMEOUTS } from '../constants';
 
 test.describe('My Favorite Services widget', () => {
   const widgetId = 'chrome-./DashboardFavorites-widget';

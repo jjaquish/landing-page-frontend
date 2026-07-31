@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { LandingPage, TIMEOUTS } from '../pages/LandingPage';
+import { LandingPage } from '../pages/LandingPage';
+import { TIMEOUTS } from '../constants';
 
 test.describe('Explore Capabilities widget', () => {
   test.describe.configure({ timeout: 90000 });

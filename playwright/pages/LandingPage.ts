@@ -1,16 +1,7 @@
 import { expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { disableCookiePrompt } from '@redhat-cloud-services/playwright-test-auth';
-
-export const TIMEOUTS = {
-  PAGE_INTERACTIVE: 90000,
-  WIDGET_VISIBLE: 60000,
-  MENU_VISIBLE: 15000,
-  LAYOUT_PATCH: 15000,
-  WIDGET_REMOVAL: 20000,
-  MODAL_VISIBLE: 20000,
-  LAYOUT_RESPONSE: 25000,
-} as const;
+import { TIMEOUTS } from '../constants';
 
 export type FavoritePage = {
   id: number;

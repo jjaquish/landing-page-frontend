@@ -1,5 +1,6 @@
 import { type Locator, type Page, expect, test } from '@playwright/test';
-import { LandingPage, TIMEOUTS } from '../pages/LandingPage';
+import { LandingPage } from '../pages/LandingPage';
+import { TIMEOUTS } from '../constants';
 
 test.describe('Landing page widget layout operations', () => {
   test.describe.configure({ timeout: 180000 });
