@@ -1,20 +1,20 @@
-import { type Locator, type Page, expect, test } from "@playwright/test";
-import { LandingPage } from "../pages/LandingPage";
-import { TIMEOUTS } from "../constants";
+import { type Locator, type Page, expect, test } from '@playwright/test';
+import { LandingPage } from '../pages/LandingPage';
+import { TIMEOUTS } from '../constants';
 
-test.describe("My Favorite Services widget", () => {
-  const widgetId = "chrome-./DashboardFavorites-widget";
+test.describe('My Favorite Services widget', () => {
+  const widgetId = 'chrome-./DashboardFavorites-widget';
 
   async function openServicesMenu(page: Page): Promise<Locator> {
     // This button toggles the All Services sidebar/dropdown in chrome.
-    const toggle = page.getByRole("button", {
+    const toggle = page.getByRole('button', {
       name: /Red Hat Hybrid Cloud Console/i,
     });
     await expect(toggle).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
     await toggle.click();
 
     const sidebarRoot = page
-      .locator(".pf-v6-c-sidebar, .pf-v5-c-sidebar")
+      .locator('.pf-v6-c-sidebar, .pf-v5-c-sidebar')
       .first();
     await expect(sidebarRoot).toBeVisible({
       timeout: TIMEOUTS.PAGE_INTERACTIVE,
@@ -23,10 +23,12 @@ test.describe("My Favorite Services widget", () => {
   }
 
   async function closeServicesMenu(page: Page): Promise<void> {
-    const toggle = page.getByRole("button", {
+    const toggle = page.getByRole('button', {
       name: /Red Hat Hybrid Cloud Console/i,
     });
-    await toggle.click().catch(() => undefined);
+    if (await toggle.isVisible()) {
+      await toggle.click();
+    }
   }
 
   async function clickAutomationCategoryIfPresent(
@@ -35,24 +37,16 @@ test.describe("My Favorite Services widget", () => {
     // Different chrome variants render this in a left-nav, a tablist, or as a link/button.
     // We search the entire services menu container (not just the content panel).
     const candidates = [
-      sidebar.getByRole("tab", { name: /^Automation$/i }),
-      sidebar.getByRole("button", { name: /^Automation$/i }),
-      sidebar.getByRole("link", { name: /^Automation$/i }),
+      sidebar.getByRole('tab', { name: /^Automation$/i }),
+      sidebar.getByRole('button', { name: /^Automation$/i }),
+      sidebar.getByRole('link', { name: /^Automation$/i }),
       sidebar.getByText(/^Automation$/i),
       sidebar.getByText(/automation/i),
     ];
 
     for (const c of candidates) {
-      if (
-        await c
-          .first()
-          .isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })
-          .catch(() => false)
-      ) {
-        await c
-          .first()
-          .scrollIntoViewIfNeeded()
-          .catch(() => undefined);
+      if (await c.first().isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })) {
+        await c.first().scrollIntoViewIfNeeded();
         await c.first().click();
         return;
       }
@@ -67,11 +61,11 @@ test.describe("My Favorite Services widget", () => {
     await clickAutomationCategoryIfPresent(sidebar);
 
     const sidebarContent = sidebar
-      .locator(".pf-v6-c-sidebar__content, .pf-v5-c-sidebar__content")
+      .locator('.pf-v6-c-sidebar__content, .pf-v5-c-sidebar__content')
       .first();
 
     const tasksLink = sidebarContent
-      .getByRole("link", { name: /^Tasks$/ })
+      .getByRole('link', { name: /^Tasks$/ })
       .or(sidebarContent.locator('a[href*="/insights/tasks"]'))
       .first();
     await expect(tasksLink).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
@@ -79,11 +73,11 @@ test.describe("My Favorite Services widget", () => {
 
     // In the topbar services dropdown, each service is rendered as a tile/link that contains
     // a `.chr-c-favorite-trigger` container and a `...-FavoriteToggle` plain button.
-    const trigger = tasksLink.locator(".chr-c-favorite-trigger").first();
+    const trigger = tasksLink.locator('.chr-c-favorite-trigger').first();
     await expect(trigger).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
 
     const isFavorited = async () =>
-      (await trigger.getAttribute("class"))?.includes("chr-c-icon-favorited") ??
+      (await trigger.getAttribute('class'))?.includes('chr-c-icon-favorited') ??
       false;
 
     const before = await isFavorited();
@@ -101,11 +95,7 @@ test.describe("My Favorite Services widget", () => {
       .getByLabel(/(unfavorite|favorite)\s+tasks/i)
       .first();
 
-    if (
-      await starButton
-        .isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })
-        .catch(() => false)
-    ) {
+    if (await starButton.isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })) {
       await starButton.click();
     } else {
       await expect(starIconFallback).toBeVisible({
@@ -114,23 +104,19 @@ test.describe("My Favorite Services widget", () => {
       await starIconFallback.click();
     }
 
-    const apiWait = page
-      .waitForResponse(
-        (resp) => {
-          const url = resp.url();
-          const method = resp.request().method();
-          return (
-            url.includes("/api/chrome-service/v1/favorite-pages") &&
-            (method === "POST" || method === "DELETE") &&
-            resp.status() >= 200 &&
-            resp.status() < 400
-          );
-        },
-        { timeout: TIMEOUTS.WIDGET_REMOVAL },
-      )
-      .catch(() => undefined);
-
-    await apiWait;
+    await page.waitForResponse(
+      (resp) => {
+        const url = resp.url();
+        const method = resp.request().method();
+        return (
+          url.includes('/api/chrome-service/v1/favorite-pages') &&
+          (method === 'POST' || method === 'DELETE') &&
+          resp.status() >= 200 &&
+          resp.status() < 400
+        );
+      },
+      { timeout: TIMEOUTS.WIDGET_REMOVAL },
+    );
     await expect
       .poll(isFavorited, { timeout: TIMEOUTS.PAGE_INTERACTIVE })
       .toBe(shouldBeFavorited);
@@ -143,15 +129,17 @@ test.describe("My Favorite Services widget", () => {
     await page.setViewportSize({ width: 1280, height: 2000 });
   });
 
-  test("appears in the default layout", async ({ page }) => {
+  test('appears in the default layout', async ({ page }) => {
     const landing = new LandingPage(page);
     await landing.gotoAndWaitForLayout();
     await landing.resetToDefaultLayout();
 
-    await expect(landing.widget(widgetId)).toBeVisible();
+    await expect(landing.widget(widgetId)).toBeVisible({
+      timeout: TIMEOUTS.WIDGET_VISIBLE,
+    });
   });
 
-  test("disappears when removed from the layout", async ({ page }) => {
+  test('disappears when removed from the layout', async ({ page }) => {
     const landing = new LandingPage(page);
     await landing.gotoAndWaitForLayout();
     await landing.resetToDefaultLayout();
@@ -159,13 +147,13 @@ test.describe("My Favorite Services widget", () => {
     await landing.removeWidget(widgetId);
   });
 
-  test("shows empty state when no favorites are set", async ({ page }) => {
+  test('shows empty state when no favorites are set', async ({ page }) => {
     const landing = new LandingPage(page);
 
     const favoritesResp = page.waitForResponse((resp) => {
       return (
-        resp.request().method() === "GET" &&
-        resp.url().includes("/api/chrome-service/v1/user") &&
+        resp.request().method() === 'GET' &&
+        resp.url().includes('/api/chrome-service/v1/user') &&
         resp.status() >= 200 &&
         resp.status() < 400
       );
@@ -175,13 +163,17 @@ test.describe("My Favorite Services widget", () => {
     await landing.resetToDefaultLayout();
     await favoritesResp;
 
-    await expect(landing.widget(widgetId)).toBeVisible();
+    await expect(landing.widget(widgetId)).toBeVisible({
+      timeout: TIMEOUTS.WIDGET_VISIBLE,
+    });
     await expect(
-      landing.widget(widgetId).getByRole("heading", { level: 3 }),
-    ).toContainText(/no favorited services/i);
+      landing.widget(widgetId).getByRole('heading', { level: 3 }),
+    ).toContainText(/no favorited services/i, {
+      timeout: TIMEOUTS.WIDGET_VISIBLE,
+    });
   });
 
-  test("shows favorites when they are set", async ({ page }) => {
+  test('shows favorites when they are set', async ({ page }) => {
     const landing = new LandingPage(page);
     test.setTimeout(TIMEOUTS.TEST_DEFAULT);
 
@@ -197,7 +189,7 @@ test.describe("My Favorite Services widget", () => {
       await landing.gotoAndWaitForLayout();
 
       const widget = landing.widget(widgetId);
-      await expect(widget).toBeVisible();
+      await expect(widget).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
       await expect(widget.getByText(/no favorited services/i)).toHaveCount(0, {
         timeout: TIMEOUTS.WIDGET_VISIBLE,
       });

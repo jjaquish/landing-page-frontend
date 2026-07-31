@@ -1,7 +1,7 @@
-import { expect, test } from "@playwright/test";
-import { LandingPage } from "../pages/LandingPage";
+import { expect, test } from '@playwright/test';
+import { LandingPage } from '../pages/LandingPage';
 
-test.describe("Landing page widgets - basic presence and links", () => {
+test.describe('Landing page widgets - basic presence and links', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 2000 });
     const landing = new LandingPage(page);
@@ -9,86 +9,84 @@ test.describe("Landing page widgets - basic presence and links", () => {
     await landing.resetToDefaultLayout();
   });
 
-  test("RHEL widget exists", async ({ page }) => {
+  test('RHEL widget exists', async ({ page }) => {
     const landing = new LandingPage(page);
-    await expect(landing.widget("landing-./RhelWidget-widget")).toBeVisible();
+    await expect(landing.widget('landing-./RhelWidget-widget')).toBeVisible();
   });
 
-  test("RHEL widget link targets Insights", async ({ page }) => {
+  test('RHEL widget link targets Insights', async ({ page }) => {
     const landing = new LandingPage(page);
     await expect(
-      landing.widget("landing-./RhelWidget-widget").locator("a"),
-    ).toHaveAttribute("href", /\/insights\//);
+      landing.widget('landing-./RhelWidget-widget').locator('a'),
+    ).toHaveAttribute('href', /\/insights\//);
   });
 
-  test("RHEL widget can be removed", async ({ page }) => {
+  test('RHEL widget can be removed', async ({ page }) => {
     const landing = new LandingPage(page);
-    await landing.removeWidget("landing-./RhelWidget-widget");
+    await landing.removeWidget('landing-./RhelWidget-widget');
   });
 
-  test("Ansible widget appears in default layout", async ({ page }) => {
+  test('Ansible widget appears in default layout', async ({ page }) => {
     const landing = new LandingPage(page);
     await expect(
-      landing.widget("landing-./AnsibleWidget-widget"),
+      landing.widget('landing-./AnsibleWidget-widget'),
     ).toBeVisible();
   });
 
-  test("Ansible widget has correct link", async ({ page }) => {
+  test('Ansible widget has correct link', async ({ page }) => {
     const landing = new LandingPage(page);
     await expect(
-      landing.widget("landing-./AnsibleWidget-widget").locator("a"),
-    ).toHaveAttribute("href", /\/ansible\/ansible-dashboard/);
+      landing.widget('landing-./AnsibleWidget-widget').locator('a'),
+    ).toHaveAttribute('href', /\/ansible\/ansible-dashboard/);
   });
 
-  test("Ansible widget can be removed", async ({ page }) => {
+  test('Ansible widget can be removed', async ({ page }) => {
     const landing = new LandingPage(page);
-    await landing.removeWidget("landing-./AnsibleWidget-widget");
-    // cleanup: restore default layout for any following tests in the same worker run
-    await landing.resetToDefaultLayout();
+    await landing.removeWidget('landing-./AnsibleWidget-widget');
   });
 
-  test("OpenShift widget exists and links to /openshift", async ({ page }) => {
+  test('OpenShift widget exists and links to /openshift', async ({ page }) => {
     const landing = new LandingPage(page);
-    const widgetId = "landing-./OpenShiftWidget-widget";
+    const widgetId = 'landing-./OpenShiftWidget-widget';
     await expect(landing.widget(widgetId)).toBeVisible();
-    await expect(landing.widget(widgetId).locator("a")).toHaveAttribute(
-      "href",
+    await expect(landing.widget(widgetId).locator('a')).toHaveAttribute(
+      'href',
       /\/openshift/,
     );
   });
 
-  test("OpenShift widget can be removed", async ({ page }) => {
+  test('OpenShift widget can be removed', async ({ page }) => {
     const landing = new LandingPage(page);
-    await landing.removeWidget("landing-./OpenShiftWidget-widget");
+    await landing.removeWidget('landing-./OpenShiftWidget-widget');
   });
 
-  test("OpenShift AI widget exists", async ({ page }) => {
+  test('OpenShift AI widget exists', async ({ page }) => {
     const landing = new LandingPage(page);
     await expect(
-      landing.widget("landing-./OpenShiftAiWidget-widget"),
+      landing.widget('landing-./OpenShiftAiWidget-widget'),
     ).toBeVisible();
   });
 
-  test("OpenShift AI widget link is correct", async ({ page }) => {
+  test('OpenShift AI widget link is correct', async ({ page }) => {
     const landing = new LandingPage(page);
     await expect(
-      landing.widget("landing-./OpenShiftAiWidget-widget").locator("a"),
+      landing.widget('landing-./OpenShiftAiWidget-widget').locator('a'),
     ).toHaveAttribute(
-      "href",
+      'href',
       /redhat\.com\/en\/technologies\/cloud-computing\/openshift\/openshift-ai\/trial/,
     );
   });
 
-  test("OpenShift AI widget can be removed", async ({ page }) => {
+  test('OpenShift AI widget can be removed', async ({ page }) => {
     const landing = new LandingPage(page);
-    await landing.removeWidget("landing-./OpenShiftAiWidget-widget");
+    await landing.removeWidget('landing-./OpenShiftAiWidget-widget');
   });
 
-  test("ACS widget shows expected descriptive copy", async ({ page }) => {
+  test('ACS widget shows expected descriptive copy', async ({ page }) => {
     const landing = new LandingPage(page);
     // The Cypress source was a component test; here we validate the same copy via E2E widget.
-    await expect(landing.widget("landing-./AcsWidget-widget")).toContainText(
-      "Fully hosted software as a service for protecting cloud-native applications and Kubernetes.",
+    await expect(landing.widget('landing-./AcsWidget-widget')).toContainText(
+      'Fully hosted software as a service for protecting cloud-native applications and Kubernetes.',
     );
   });
 });
