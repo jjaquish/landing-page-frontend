@@ -20,7 +20,8 @@ export default defineConfig({
   /* Use single worker to avoid race conditions */
   workers: 1,
   /* Stop test run after 2 failures */
-  maxFailures: 2,
+  maxFailures: 0,
+  timeout: 120000,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */

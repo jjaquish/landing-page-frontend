@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { LandingPage } from '../pages/LandingPage';
+import { LandingPage, TIMEOUTS } from '../pages/LandingPage';
 
 test.describe('Explore Capabilities widget', () => {
   test.describe.configure({ timeout: 90000 });
@@ -12,8 +12,8 @@ test.describe('Explore Capabilities widget', () => {
 
   test('shows correct content and CTAs for each tile', async ({ page }) => {
     const landing = new LandingPage(page);
-    const widget = landing.widget('exploreCapabilities-widget');
-    await expect(widget).toBeVisible();
+    const widget = landing.widget('landing-./ExploreCapabilities-widget');
+    await expect(widget).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
 
     const tileData = [
       {
@@ -47,7 +47,7 @@ test.describe('Explore Capabilities widget', () => {
       const tile = widget.locator(
         `[data-ouia-component-id="${item.ouiaId}"]`,
       );
-      await expect(tile).toBeVisible();
+      await expect(tile).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
       await expect(tile).toContainText(item.title);
 
       // The link wraps the PF Card, so the <a> is an ancestor of the card element.

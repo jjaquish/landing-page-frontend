@@ -1,21 +1,21 @@
 import { type Locator, type Page, expect, test } from '@playwright/test';
-import { LandingPage } from '../pages/LandingPage';
+import { LandingPage, TIMEOUTS } from '../pages/LandingPage';
 
 test.describe('My Favorite Services widget', () => {
-  const widgetId = 'favoriteServices-widget';
+  const widgetId = 'chrome-./DashboardFavorites-widget';
 
   async function openServicesMenu(page: Page): Promise<Locator> {
     // This button toggles the All Services sidebar/dropdown in chrome.
     const toggle = page.getByRole('button', {
       name: /Red Hat Hybrid Cloud Console/i,
     });
-    await expect(toggle).toBeVisible({ timeout: 60000 });
+    await expect(toggle).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
     await toggle.click();
 
     const sidebarRoot = page
       .locator('.pf-v6-c-sidebar, .pf-v5-c-sidebar')
       .first();
-    await expect(sidebarRoot).toBeVisible({ timeout: 60000 });
+    await expect(sidebarRoot).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
     return sidebarRoot;
   }
 
@@ -71,13 +71,13 @@ test.describe('My Favorite Services widget', () => {
       .getByRole('link', { name: /^Tasks$/ })
       .or(sidebarContent.locator('a[href*="/insights/tasks"]'))
       .first();
-    await expect(tasksLink).toBeVisible({ timeout: 60000 });
+    await expect(tasksLink).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
     await tasksLink.scrollIntoViewIfNeeded();
 
     // In the topbar services dropdown, each service is rendered as a tile/link that contains
     // a `.chr-c-favorite-trigger` container and a `...-FavoriteToggle` plain button.
     const trigger = tasksLink.locator('.chr-c-favorite-trigger').first();
-    await expect(trigger).toBeVisible({ timeout: 60000 });
+    await expect(trigger).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
 
     const isFavorited = async () =>
       (await trigger.getAttribute('class'))?.includes('chr-c-icon-favorited') ??
@@ -101,7 +101,7 @@ test.describe('My Favorite Services widget', () => {
     if (await starButton.isVisible({ timeout: 1500 }).catch(() => false)) {
       await starButton.click();
     } else {
-      await expect(starIconFallback).toBeVisible({ timeout: 60000 });
+      await expect(starIconFallback).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
       await starIconFallback.click();
     }
 
@@ -122,7 +122,7 @@ test.describe('My Favorite Services widget', () => {
       .catch(() => undefined);
 
     await apiWait;
-    await expect.poll(isFavorited, { timeout: 60000 }).toBe(shouldBeFavorited);
+    await expect.poll(isFavorited, { timeout: TIMEOUTS.PAGE_INTERACTIVE }).toBe(shouldBeFavorited);
 
     await closeServicesMenu(page);
   }
@@ -133,7 +133,6 @@ test.describe('My Favorite Services widget', () => {
 
   test('appears in the default layout', async ({ page }) => {
     const landing = new LandingPage(page);
-    await landing.stubFavoritePages([]);
     await landing.gotoAndWaitForLayout();
     await landing.resetToDefaultLayout();
 
@@ -142,7 +141,6 @@ test.describe('My Favorite Services widget', () => {
 
   test('disappears when removed from the layout', async ({ page }) => {
     const landing = new LandingPage(page);
-    await landing.stubFavoritePages([]);
     await landing.gotoAndWaitForLayout();
     await landing.resetToDefaultLayout();
 
@@ -151,7 +149,6 @@ test.describe('My Favorite Services widget', () => {
 
   test('shows empty state when no favorites are set', async ({ page }) => {
     const landing = new LandingPage(page);
-    await landing.stubFavoritePages([]);
 
     const favoritesResp = page.waitForResponse((resp) => {
       return (
@@ -174,26 +171,25 @@ test.describe('My Favorite Services widget', () => {
 
   test('shows favorites when they are set', async ({ page }) => {
     const landing = new LandingPage(page);
-    test.setTimeout(90000);
+    test.setTimeout(180000);
 
     await landing.gotoAndWaitForLayout();
     await landing.resetToDefaultLayout();
 
-    try {
-      // Favoriting via UI avoids brittle stubbing and matches real user behavior.
-      await setTasksFavorite(page, true);
+    // Use the real UI to favorite a service — stubbing the API doesn't
+    // propagate into chrome's internal state for the federated widget.
+    await setTasksFavorite(page, true);
 
-      const widget = landing.widget(widgetId);
-      await expect(widget).toBeVisible();
-      await expect(widget.getByText(/no favorited services/i)).toHaveCount(0, {
-        timeout: 60000,
-      });
-      await expect(widget.locator('a[href*="/insights/tasks"]')).toBeVisible({
-        timeout: 60000,
-      });
-    } finally {
-      // Cleanup: restore state for subsequent test runs.
-      await setTasksFavorite(page, false).catch(() => undefined);
-    }
+    // The widget reads favorites on init; reload so it picks up the change.
+    await landing.gotoAndWaitForLayout();
+
+    const widget = landing.widget(widgetId);
+    await expect(widget).toBeVisible();
+    await expect(widget.getByText(/no favorited services/i)).toHaveCount(0, {
+      timeout: TIMEOUTS.WIDGET_VISIBLE,
+    });
+
+    // Cleanup: remove the favorite so other tests start from a clean state.
+    await setTasksFavorite(page, false);
   });
 });

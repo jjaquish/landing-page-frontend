@@ -2,6 +2,16 @@ import { expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { disableCookiePrompt } from '@redhat-cloud-services/playwright-test-auth';
 
+export const TIMEOUTS = {
+  PAGE_INTERACTIVE: 90000,
+  WIDGET_VISIBLE: 60000,
+  MENU_VISIBLE: 15000,
+  LAYOUT_PATCH: 15000,
+  WIDGET_REMOVAL: 20000,
+  MODAL_VISIBLE: 20000,
+  LAYOUT_RESPONSE: 25000,
+} as const;
+
 export type FavoritePage = {
   id: number;
   createdAt: string;
@@ -21,7 +31,7 @@ export class LandingPage {
 
 
   private isOkishStatus(status: number): boolean {
-    // Treat redirects/caching as OK for our network “presence” waits.
+    // Treat redirects/caching as OK for our network "presence" waits.
     return status >= 200 && status < 400;
   }
 
@@ -35,7 +45,35 @@ export class LandingPage {
     );
   }
 
+  private initScriptInstalled = false;
+
   async gotoAndWaitForLayout(): Promise<void> {
+    if (!this.initScriptInstalled) {
+      this.initScriptInstalled = true;
+      await this.page.addInitScript(() => {
+        const tag = '__hmr_overlay_killer';
+        if ((window as any)[tag]) return;
+        (window as any)[tag] = true;
+        function kill() {
+          const el = document.getElementById('react-refresh-overlay');
+          if (el) el.remove();
+        }
+        const mo = new MutationObserver((mutations) => {
+          for (const m of mutations) {
+            for (const n of m.addedNodes) {
+              if (n instanceof HTMLElement && n.id === 'react-refresh-overlay') {
+                n.remove();
+                return;
+              }
+            }
+          }
+        });
+        const start = () => { kill(); mo.observe(document.body, { childList: true }); };
+        if (document.body) start();
+        else document.addEventListener('DOMContentLoaded', start);
+      });
+    }
+
     const layoutResp = this.page.waitForResponse((resp) => {
       const url = resp.url();
       return (
@@ -49,19 +87,26 @@ export class LandingPage {
     await this.page.goto('/', { waitUntil: 'domcontentloaded' });
     await disableCookiePrompt(this.page);
 
-    // Some environments cache this request; don’t hard-fail if it doesn’t fire.
+    // Some environments cache this request; don't hard-fail if it doesn't fire.
     await Promise.race([
       layoutResp.catch(() => undefined),
       this.page
         .locator('#widget-layout-container')
-        .waitFor({ state: 'visible', timeout: 60000 })
+        .waitFor({ state: 'visible', timeout: TIMEOUTS.PAGE_INTERACTIVE })
         .catch(() => undefined),
     ]);
 
-    // A high-signal “page is interactive” check for console apps.
+    // A high-signal "page is interactive" check for console apps.
     await expect(
       this.page.getByRole('button', { name: /User Avatar/i }),
-    ).toBeVisible({ timeout: 60000 });
+    ).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
+
+    // Wait for the widget grid to actually render items.
+    await this.page
+      .locator('#widget-layout-container .react-grid-item')
+      .first()
+      .waitFor({ state: 'visible', timeout: TIMEOUTS.WIDGET_VISIBLE })
+      .catch(() => undefined);
   }
 
   async resetToDefaultLayout(): Promise<void> {
@@ -79,7 +124,7 @@ export class LandingPage {
             this.isOkishStatus(resp.status())
           );
         },
-        { timeout: 25000 },
+        { timeout: TIMEOUTS.LAYOUT_RESPONSE },
       )
       .catch(() => undefined);
 
@@ -97,14 +142,14 @@ export class LandingPage {
             this.isOkishStatus(resp.status())
           );
         },
-        { timeout: 25000 },
+        { timeout: TIMEOUTS.LAYOUT_RESPONSE },
       )
       .catch(() => undefined);
 
     const resetButton = this.page.getByRole('button', {
       name: /reset to default/i,
     });
-    await expect(resetButton).toBeVisible({ timeout: 60000 });
+    await expect(resetButton).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
     await resetButton.scrollIntoViewIfNeeded();
     await resetButton.click();
     const confirmCheckbox = this.page.locator(
@@ -114,22 +159,22 @@ export class LandingPage {
       'button[data-ouia-component-id="WarningModal-confirm-button"]',
     );
 
-    await expect(confirmCheckbox).toBeVisible({ timeout: 20000 });
+    await expect(confirmCheckbox).toBeVisible({ timeout: TIMEOUTS.MODAL_VISIBLE });
     await confirmCheckbox.click();
-    await expect(confirmButton).toBeVisible({ timeout: 20000 });
+    await expect(confirmButton).toBeVisible({ timeout: TIMEOUTS.MODAL_VISIBLE });
     await confirmButton.click();
 
     // Wait for the modal to close.
-    await expect(confirmButton).toHaveCount(0, { timeout: 20000 });
+    await expect(confirmButton).toHaveCount(0, { timeout: TIMEOUTS.MODAL_VISIBLE });
 
     const uiReady = Promise.all([
       this.page
         .locator('#widget-layout-container')
-        .waitFor({ state: 'visible', timeout: 25000 }),
+        .waitFor({ state: 'visible', timeout: TIMEOUTS.LAYOUT_RESPONSE }),
       this.page
         .locator('#widget-layout-container .react-grid-item')
         .first()
-        .waitFor({ state: 'visible', timeout: 25000 }),
+        .waitFor({ state: 'visible', timeout: TIMEOUTS.LAYOUT_RESPONSE }),
     ]).catch(() => undefined);
 
     // Best-effort: proceed when either the network response arrives or the UI is ready.
@@ -138,7 +183,7 @@ export class LandingPage {
     await templatesReloadResp;
   }
 
-  async waitForLayoutPatchOptional(timeoutMs = 15000): Promise<void> {
+  async waitForLayoutPatchOptional(timeoutMs = TIMEOUTS.LAYOUT_PATCH): Promise<void> {
     await this.page
       .waitForResponse(
         (resp) => {
@@ -180,7 +225,7 @@ export class LandingPage {
   }
 
   async removeWidget(widgetId: string): Promise<void> {
-    await expect(this.widget(widgetId)).toBeVisible({ timeout: 60000 });
+    await expect(this.widget(widgetId)).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
 
     const openMenu = async () => {
       await this.widgetMenuToggle(widgetId).click();
@@ -198,7 +243,7 @@ export class LandingPage {
       .getByRole('menuitem', { name: /^remove\b/i })
       .first()
       .or(removeItem.first().locator('button[role="menuitem"]').first());
-    await expect(removeMenuItem).toBeVisible({ timeout: 15000 });
+    await expect(removeMenuItem).toBeVisible({ timeout: TIMEOUTS.MENU_VISIBLE });
 
     // If the widget is locked, "Remove" is disabled. Auto-unlock before removing.
     const disabled = await removeMenuItem.isDisabled().catch(() => false);
@@ -219,9 +264,9 @@ export class LandingPage {
         await unlockMenuItem.isVisible({ timeout: 2000 }).catch(() => false)
       ) {
         await unlockMenuItem.click();
-        await this.waitForLayoutPatchOptional(15000);
+        await this.waitForLayoutPatchOptional(TIMEOUTS.LAYOUT_PATCH);
         await this.widgetMenuToggle(widgetId).click();
-        await expect(removeMenuItem).toBeVisible({ timeout: 15000 });
+        await expect(removeMenuItem).toBeVisible({ timeout: TIMEOUTS.MENU_VISIBLE });
       }
     }
 
@@ -234,7 +279,7 @@ export class LandingPage {
 
     // Avoid short fixed timeouts: removal can be slow and can race with late layout updates.
     const removed = await expect
-      .poll(async () => this.widget(widgetId).count(), { timeout: 20000 })
+      .poll(async () => this.widget(widgetId).count(), { timeout: TIMEOUTS.WIDGET_REMOVAL })
       .toBe(0)
       .then(() => true)
       .catch(() => false);
@@ -244,18 +289,18 @@ export class LandingPage {
       await openMenu();
       await clickRemoveOnce();
       await expect
-        .poll(async () => this.widget(widgetId).count(), { timeout: 20000 })
+        .poll(async () => this.widget(widgetId).count(), { timeout: TIMEOUTS.WIDGET_REMOVAL })
         .toBe(0);
     }
 
     // Ensure it stays gone (guards against "remove before reset finishes" races).
     await this.page.waitForTimeout(500);
-    await expect(this.widget(widgetId)).toHaveCount(0, { timeout: 25000 });
+    await expect(this.widget(widgetId)).toHaveCount(0, { timeout: TIMEOUTS.LAYOUT_RESPONSE });
   }
 
   async addWidget(
     widgetName: string,
-    widgetTargetId = 'rhel-widget',
+    widgetTargetId = 'landing-./RhelWidget-widget',
   ): Promise<void> {
     await this.page
       .locator('[data-ouia-component-id="add-widget-button"]')
@@ -270,13 +315,12 @@ export class LandingPage {
     await this.waitForLayoutPatchOptional();
   }
 
+  /** @deprecated Use UI-based interactions instead of API stubbing in E2E tests. */
   async stubFavoritePages(favoritePages: FavoritePage[]): Promise<void> {
     await this.page.route('**/api/chrome-service/v1/user', async (route) => {
       const resp = await route.fetch();
       const contentType = resp.headers()['content-type'] ?? '';
 
-      // If the endpoint ever returns something unexpected, fall back to passthrough
-      // (keeps the suite from failing on non-JSON environments).
       if (!contentType.includes('application/json')) {
         await route.fulfill({ response: resp });
         return;
@@ -288,7 +332,6 @@ export class LandingPage {
         ({} as Record<string, unknown>);
       json.data = data;
 
-      // Handle common response shapes (the exact field name can drift).
       if ('favoritePages' in data) {
         data.favoritePages = favoritePages as unknown[];
       } else if ('favorite_pages' in data) {
@@ -299,5 +342,21 @@ export class LandingPage {
 
       await route.fulfill({ response: resp, json });
     });
+
+    // The DashboardFavorites widget may also fetch from the dedicated endpoint.
+    await this.page.route(
+      '**/api/chrome-service/v1/favorite-pages',
+      async (route) => {
+        if (route.request().method() !== 'GET') {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ data: favoritePages }),
+        });
+      },
+    );
   }
 }
