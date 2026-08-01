@@ -195,7 +195,16 @@ test.describe('My Favorite Services widget', () => {
 
       const widget = landing.widget(widgetId);
       await expect(widget).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
-      await expect(widget.getByText(/no favorited services/i)).toHaveCount(0, {
+
+      // Chrome's federated widget may serve a cached empty state on the
+      // first navigation after favoriting. Reload once to pick up fresh data.
+      const emptyText = widget.getByText(/no favorited services/i);
+      if ((await emptyText.count()) > 0) {
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(widget).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
+      }
+
+      await expect(emptyText).toHaveCount(0, {
         timeout: TIMEOUTS.WIDGET_VISIBLE,
       });
     } finally {

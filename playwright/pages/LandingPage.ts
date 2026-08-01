@@ -99,7 +99,6 @@ export class LandingPage {
     await expect(resetButton).toBeVisible({
       timeout: TIMEOUTS.PAGE_INTERACTIVE,
     });
-    await resetButton.scrollIntoViewIfNeeded();
     await resetButton.click();
 
     const confirmCheckbox = this.page.locator(
