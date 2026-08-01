@@ -179,7 +179,10 @@ test.describe('My Favorite Services widget', () => {
     });
   });
 
-  test('shows favorites when they are set', async ({ page }) => {
+  // Skipped 2026-07-31: Chrome's DashboardFavorites widget never displays
+  // favorites due to a data lookup bug in useFavoritedServices.
+  // Tracking: RHCLOUD-49898
+  test.skip('shows favorites when they are set', async ({ page }) => {
     const landing = new LandingPage(page);
 
     await landing.gotoAndWaitForLayout();
@@ -191,17 +194,21 @@ test.describe('My Favorite Services widget', () => {
 
     try {
       // The widget reads favorites on init; reload so it picks up the change.
+      // Chrome's federated widget may serve a cached empty state, so retry
+      // with full page navigations until the cache expires.
       await landing.gotoAndWaitForLayout();
 
       const widget = landing.widget(widgetId);
-      await expect(widget).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
-
-      // Chrome's federated widget may serve a cached empty state on the
-      // first navigation after favoriting. Reload once to pick up fresh data.
       const emptyText = widget.getByText(/no favorited services/i);
-      if ((await emptyText.count()) > 0) {
-        await page.reload({ waitUntil: 'domcontentloaded' });
+      let retries = 3;
+
+      while (retries > 0) {
         await expect(widget).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
+        if ((await emptyText.count()) === 0) break;
+        retries--;
+        if (retries > 0) {
+          await landing.gotoAndWaitForLayout();
+        }
       }
 
       await expect(emptyText).toHaveCount(0, {

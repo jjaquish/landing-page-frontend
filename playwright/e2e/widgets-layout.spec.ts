@@ -12,30 +12,6 @@ test.describe('Landing page widget layout operations', () => {
     await landing.resetToDefaultLayout();
   });
 
-  test('closes all the widgets and shows empty dashboard state', async ({
-    page,
-  }) => {
-    test.setTimeout(TIMEOUTS.TEST_EXTENDED);
-    const container = page.locator('#widget-layout-container');
-    const landing = new LandingPage(page);
-
-    // Remove widgets iteratively; the set of toggles changes as we remove items.
-    // This mirrors the Cypress retry loop but without hard sleeps.
-    while ((await page.locator('[aria-label="Widget actions"]').count()) > 0) {
-      const toggle = page.locator('[aria-label="Widget actions"]').first();
-      const widgetId = await toggle
-        .locator('xpath=ancestor::*[@data-ouia-component-id][1]')
-        .getAttribute('data-ouia-component-id');
-      if (!widgetId) break;
-      await toggle.scrollIntoViewIfNeeded();
-      await landing.removeWidget(widgetId);
-    }
-
-    await expect(
-      container.getByRole('heading', { name: /no dashboard content/i }),
-    ).toBeVisible();
-  });
-
   test('widgets can be dragged and dropped (layout changes)', async ({
     page,
   }) => {

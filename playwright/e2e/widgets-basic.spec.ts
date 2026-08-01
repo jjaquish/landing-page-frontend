@@ -2,93 +2,107 @@ import { expect, test } from '@playwright/test';
 import { LandingPage } from '../pages/LandingPage';
 import { TIMEOUTS } from '../constants';
 
+const DEFAULT_WIDGETS = [
+  {
+    id: 'landing-./RhelWidget-widget',
+    name: 'RHEL',
+    linkPattern: /\/insights\//,
+  },
+  {
+    id: 'landing-./AnsibleWidget-widget',
+    name: 'Ansible',
+    linkPattern: /\/ansible\/ansible-dashboard/,
+  },
+  {
+    id: 'landing-./OpenShiftWidget-widget',
+    name: 'OpenShift',
+    linkPattern: /\/openshift/,
+  },
+  {
+    id: 'landing-./OpenShiftAiWidget-widget',
+    name: 'OpenShift AI',
+    linkPattern:
+      /redhat\.com\/en\/technologies\/cloud-computing\/openshift\/openshift-ai\/trial/,
+  },
+  {
+    id: 'landing-./AcsWidget-widget',
+    name: 'ACS',
+  },
+  {
+    id: 'landing-./ExploreCapabilities-widget',
+    name: 'Explore Capabilities',
+  },
+  {
+    id: 'landing-./RecentlyVisited-widget',
+    name: 'Recently Visited',
+  },
+  {
+    id: 'chrome-./DashboardFavorites-widget',
+    name: 'My Favorite Services',
+  },
+  {
+    id: 'landing-./ImageBuilderWidget-widget',
+    name: 'Image Builder',
+  },
+  {
+    id: 'subscriptionInventory-./SubscriptionsWidget-widget',
+    name: 'Subscriptions',
+  },
+] as const;
+
 test.describe('Landing page widgets - basic presence and links', () => {
-  test.describe.configure({ timeout: TIMEOUTS.TEST_DEFAULT });
-  test.beforeEach(async ({ page }) => {
+  test.describe.configure({ timeout: TIMEOUTS.TEST_EXTENDED });
+
+  test('default widgets appear, can be removed, and restore on reset', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 2000 });
     const landing = new LandingPage(page);
     await landing.gotoAndWaitForLayout();
     await landing.resetToDefaultLayout();
-  });
 
-  test('RHEL widget exists', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await expect(landing.widget('landing-./RhelWidget-widget')).toBeVisible();
-  });
+    await test.step('Verify default widgets are present', async () => {
+      for (const w of DEFAULT_WIDGETS) {
+        await expect(landing.widget(w.id)).toBeVisible({
+          timeout: TIMEOUTS.WIDGET_VISIBLE,
+        });
+      }
+    });
 
-  test('RHEL widget link targets Insights', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await expect(
-      landing.widget('landing-./RhelWidget-widget').locator('a'),
-    ).toHaveAttribute('href', /\/insights\//);
-  });
+    await test.step('Verify widget links', async () => {
+      for (const w of DEFAULT_WIDGETS) {
+        if ('linkPattern' in w) {
+          await expect(landing.widget(w.id).locator('a')).toHaveAttribute(
+            'href',
+            w.linkPattern,
+          );
+        }
+      }
+      await expect(landing.widget('landing-./AcsWidget-widget')).toContainText(
+        'Fully hosted software as a service for protecting cloud-native applications and Kubernetes.',
+      );
+    });
 
-  test('RHEL widget can be removed', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await landing.removeWidget('landing-./RhelWidget-widget');
-  });
+    for (const w of DEFAULT_WIDGETS) {
+      await test.step(`Remove ${w.name} widget`, async () => {
+        await landing.removeWidget(w.id);
+      });
+    }
 
-  test('Ansible widget appears in default layout', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await expect(
-      landing.widget('landing-./AnsibleWidget-widget'),
-    ).toBeVisible();
-  });
+    await test.step('Verify empty dashboard state', async () => {
+      const container = page.locator('#widget-layout-container');
+      await expect(
+        container.getByRole('heading', { name: /no dashboard content/i }),
+      ).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
+    });
 
-  test('Ansible widget has correct link', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await expect(
-      landing.widget('landing-./AnsibleWidget-widget').locator('a'),
-    ).toHaveAttribute('href', /\/ansible\/ansible-dashboard/);
-  });
-
-  test('Ansible widget can be removed', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await landing.removeWidget('landing-./AnsibleWidget-widget');
-  });
-
-  test('OpenShift widget exists and links to /openshift', async ({ page }) => {
-    const landing = new LandingPage(page);
-    const widgetId = 'landing-./OpenShiftWidget-widget';
-    await expect(landing.widget(widgetId)).toBeVisible();
-    await expect(landing.widget(widgetId).locator('a')).toHaveAttribute(
-      'href',
-      /\/openshift/,
-    );
-  });
-
-  test('OpenShift widget can be removed', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await landing.removeWidget('landing-./OpenShiftWidget-widget');
-  });
-
-  test('OpenShift AI widget exists', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await expect(
-      landing.widget('landing-./OpenShiftAiWidget-widget'),
-    ).toBeVisible();
-  });
-
-  test('OpenShift AI widget link is correct', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await expect(
-      landing.widget('landing-./OpenShiftAiWidget-widget').locator('a'),
-    ).toHaveAttribute(
-      'href',
-      /redhat\.com\/en\/technologies\/cloud-computing\/openshift\/openshift-ai\/trial/,
-    );
-  });
-
-  test('OpenShift AI widget can be removed', async ({ page }) => {
-    const landing = new LandingPage(page);
-    await landing.removeWidget('landing-./OpenShiftAiWidget-widget');
-  });
-
-  test('ACS widget shows expected descriptive copy', async ({ page }) => {
-    const landing = new LandingPage(page);
-    // The Cypress source was a component test; here we validate the same copy via E2E widget.
-    await expect(landing.widget('landing-./AcsWidget-widget')).toContainText(
-      'Fully hosted software as a service for protecting cloud-native applications and Kubernetes.',
-    );
+    await test.step('Reset to default and verify all widgets restored', async () => {
+      await landing.resetToDefaultLayout();
+      for (const w of DEFAULT_WIDGETS) {
+        await expect(landing.widget(w.id)).toBeVisible({
+          timeout: TIMEOUTS.WIDGET_VISIBLE,
+        });
+      }
+    });
   });
 });

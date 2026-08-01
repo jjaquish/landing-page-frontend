@@ -108,6 +108,18 @@ export class LandingPage {
       'button[data-ouia-component-id="WarningModal-confirm-button"]',
     );
 
+    // Retry click if the modal didn't appear — handles hydration race where
+    // the button is visible but React hasn't attached the event handler yet.
+    const modalAppeared = await confirmCheckbox
+      .waitFor({ state: 'visible', timeout: TIMEOUTS.OVERLAY_DISMISS })
+      .then(
+        () => true,
+        () => false,
+      );
+    if (!modalAppeared) {
+      await resetButton.click();
+    }
+
     await expect(confirmCheckbox).toBeVisible({
       timeout: TIMEOUTS.MODAL_VISIBLE,
     });
