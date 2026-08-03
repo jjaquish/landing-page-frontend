@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { LandingPage } from '../pages/LandingPage';
+import { TIMEOUTS } from '../constants';
 
 test.describe('Explore Capabilities widget', () => {
-  test.describe.configure({ timeout: 90000 });
+  test.describe.configure({ timeout: TIMEOUTS.TEST_DEFAULT });
 
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1500 });
@@ -12,8 +13,8 @@ test.describe('Explore Capabilities widget', () => {
 
   test('shows correct content and CTAs for each tile', async ({ page }) => {
     const landing = new LandingPage(page);
-    const widget = landing.widget('exploreCapabilities-widget');
-    await expect(widget).toBeVisible();
+    const widget = landing.widget('landing-./ExploreCapabilities-widget');
+    await expect(widget).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
 
     const tileData = [
       {
@@ -44,10 +45,8 @@ test.describe('Explore Capabilities widget', () => {
     ] as const;
 
     for (const item of tileData) {
-      const tile = widget.locator(
-        `[data-ouia-component-id="${item.ouiaId}"]`,
-      );
-      await expect(tile).toBeVisible();
+      const tile = widget.locator(`[data-ouia-component-id="${item.ouiaId}"]`);
+      await expect(tile).toBeVisible({ timeout: TIMEOUTS.WIDGET_VISIBLE });
       await expect(tile).toContainText(item.title);
 
       // The link wraps the PF Card, so the <a> is an ancestor of the card element.
@@ -57,5 +56,3 @@ test.describe('Explore Capabilities widget', () => {
     }
   });
 });
-
-

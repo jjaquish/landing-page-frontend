@@ -16,7 +16,9 @@ test.describe('Chrome tooltips (Settings / Help)', () => {
 
     await expect(settingsButton).toBeVisible();
     await settingsButton.hover();
-    await expect(page.locator('.tooltip-inner-settings-cy')).toContainText('Settings');
+    await expect(page.locator('.tooltip-inner-settings-cy')).toContainText(
+      'Settings',
+    );
 
     await expect(helpButton).toBeVisible();
     await helpButton.hover();
@@ -26,5 +28,3 @@ test.describe('Chrome tooltips (Settings / Help)', () => {
     );
   });
 });
-
-

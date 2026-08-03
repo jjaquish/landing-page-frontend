@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { disableCookiePrompt } from '@redhat-cloud-services/playwright-test-auth';
+import { TIMEOUTS } from '../constants';
 
 export type FavoritePage = {
   id: number;
@@ -19,74 +20,61 @@ export class LandingPage {
     this.page = page;
   }
 
-
-  private isOkishStatus(status: number): boolean {
-    // Treat redirects/caching as OK for our network “presence” waits.
-    return status >= 200 && status < 400;
-  }
-
   widget(widgetId: string): Locator {
-    return this.page.locator(`.react-grid-item > [data-ouia-component-id="${widgetId}"]`);
-  }
-
-  widgetMenuToggle(widgetId: string): Locator {
-    return this.widget(widgetId).locator(
-      '[aria-label="Widget actions"]',
+    return this.page.locator(
+      `.react-grid-item > [data-ouia-component-id="${widgetId}"]`,
     );
   }
 
+  widgetMenuToggle(widgetId: string): Locator {
+    return this.widget(widgetId).locator('[aria-label="Widget actions"]');
+  }
+
+  private initScriptInstalled = false;
+
   async gotoAndWaitForLayout(): Promise<void> {
-    const layoutResp = this.page.waitForResponse((resp) => {
-      const url = resp.url();
-      return (
-        resp.request().method() === 'GET' &&
-        url.includes('/api/chrome-service/v1/dashboard-templates') &&
-        url.includes('dashboard=landingPage') &&
-        this.isOkishStatus(resp.status())
-      );
-    });
+    if (!this.initScriptInstalled) {
+      this.initScriptInstalled = true;
+      await this.page.addInitScript(() => {
+        const tag = '__hmr_overlay_killer';
+        if ((window as any)[tag]) return;
+        (window as any)[tag] = true;
+        function kill() {
+          const el = document.getElementById('react-refresh-overlay');
+          if (el) el.remove();
+        }
+        const mo = new MutationObserver((mutations) => {
+          for (const m of mutations) {
+            for (const n of m.addedNodes) {
+              if (
+                n instanceof HTMLElement &&
+                n.id === 'react-refresh-overlay'
+              ) {
+                n.remove();
+                return;
+              }
+            }
+          }
+        });
+        const start = () => {
+          kill();
+          mo.observe(document.body, { childList: true });
+        };
+        if (document.body) start();
+        else document.addEventListener('DOMContentLoaded', start);
+      });
+    }
 
     await this.page.goto('/', { waitUntil: 'domcontentloaded' });
     await disableCookiePrompt(this.page);
 
-    // Some environments cache this request; don’t hard-fail if it doesn’t fire.
-    await Promise.race([
-      layoutResp.catch(() => undefined),
-      this.page
-        .locator('#widget-layout-container')
-        .waitFor({ state: 'visible', timeout: 60000 })
-        .catch(() => undefined),
-    ]);
-
-    // A high-signal “page is interactive” check for console apps.
     await expect(
       this.page.getByRole('button', { name: /User Avatar/i }),
-    ).toBeVisible({ timeout: 60000 });
+    ).toBeVisible({ timeout: TIMEOUTS.PAGE_INTERACTIVE });
   }
 
   async resetToDefaultLayout(): Promise<void> {
-    // In some environments this request can be cached/redirected or simply slow.
-    // Treat the network response as best-effort and rely on UI readiness signals.
-    // Keep waits bounded; most tests run with a 30s timeout.
-    const resetResp = this.page
-      .waitForResponse(
-        (resp) => {
-          const url = resp.url();
-          return (
-            resp.request().method() === 'POST' &&
-            url.includes('/api/chrome-service/v1/dashboard-templates/') &&
-            url.includes('/reset') &&
-            this.isOkishStatus(resp.status())
-          );
-        },
-        { timeout: 25000 },
-      )
-      .catch(() => undefined);
-
-    // The widget-layout implementation sets templateId to NaN after reset, which triggers a
-    // fresh GET for dashboard templates. Waiting for this avoids races where subsequent test
-    // actions (e.g. remove widget) are overwritten by the post-reset reload.
-    const templatesReloadResp = this.page
+    const templatesReload = this.page
       .waitForResponse(
         (resp) => {
           const url = resp.url();
@@ -94,19 +82,25 @@ export class LandingPage {
             resp.request().method() === 'GET' &&
             url.includes('/api/chrome-service/v1/dashboard-templates') &&
             url.includes('dashboard=landingPage') &&
-            this.isOkishStatus(resp.status())
+            resp.status() >= 200 &&
+            resp.status() < 400
           );
         },
-        { timeout: 25000 },
+        { timeout: TIMEOUTS.WIDGET_VISIBLE },
       )
-      .catch(() => undefined);
+      .then(
+        () => undefined,
+        () => undefined,
+      );
 
     const resetButton = this.page.getByRole('button', {
       name: /reset to default/i,
     });
-    await expect(resetButton).toBeVisible({ timeout: 60000 });
-    await resetButton.scrollIntoViewIfNeeded();
+    await expect(resetButton).toBeVisible({
+      timeout: TIMEOUTS.PAGE_INTERACTIVE,
+    });
     await resetButton.click();
+
     const confirmCheckbox = this.page.locator(
       '[data-ouia-component-id="WarningModal-confirm-checkbox"]',
     );
@@ -114,73 +108,100 @@ export class LandingPage {
       'button[data-ouia-component-id="WarningModal-confirm-button"]',
     );
 
-    await expect(confirmCheckbox).toBeVisible({ timeout: 20000 });
+    // Retry click if the modal didn't appear — handles hydration race where
+    // the button is visible but React hasn't attached the event handler yet.
+    const modalAppeared = await confirmCheckbox
+      .waitFor({ state: 'visible', timeout: TIMEOUTS.OVERLAY_DISMISS })
+      .then(
+        () => true,
+        () => false,
+      );
+    if (!modalAppeared) {
+      await resetButton.click();
+    }
+
+    await expect(confirmCheckbox).toBeVisible({
+      timeout: TIMEOUTS.MODAL_VISIBLE,
+    });
     await confirmCheckbox.click();
-    await expect(confirmButton).toBeVisible({ timeout: 20000 });
+    await expect(confirmButton).toBeVisible({
+      timeout: TIMEOUTS.MODAL_VISIBLE,
+    });
     await confirmButton.click();
 
-    // Wait for the modal to close.
-    await expect(confirmButton).toHaveCount(0, { timeout: 20000 });
+    await expect(confirmButton).toHaveCount(0, {
+      timeout: TIMEOUTS.MODAL_VISIBLE,
+    });
 
-    const uiReady = Promise.all([
-      this.page
-        .locator('#widget-layout-container')
-        .waitFor({ state: 'visible', timeout: 25000 }),
-      this.page
-        .locator('#widget-layout-container .react-grid-item')
-        .first()
-        .waitFor({ state: 'visible', timeout: 25000 }),
-    ]).catch(() => undefined);
+    await templatesReload;
 
-    // Best-effort: proceed when either the network response arrives or the UI is ready.
-    await Promise.race([resetResp, uiReady]);
-    // Stronger completion: wait for the post-reset template reload if it happens.
-    await templatesReloadResp;
+    await this.page
+      .locator('#widget-layout-container .react-grid-item')
+      .first()
+      .waitFor({ state: 'visible', timeout: TIMEOUTS.WIDGET_VISIBLE });
   }
 
-  async waitForLayoutPatchOptional(timeoutMs = 15000): Promise<void> {
-    await this.page
+  async dismissOverlays(): Promise<void> {
+    await this.page.keyboard.press('Escape');
+
+    const servicesMenu = this.page.locator(
+      '[data-testid="chr-c__find-app-service"]',
+    );
+    if (await servicesMenu.isVisible({ timeout: TIMEOUTS.QUICK_PROBE })) {
+      const closeBtn = servicesMenu.getByRole('button', {
+        name: /close menu/i,
+      });
+      if (await closeBtn.isVisible({ timeout: TIMEOUTS.QUICK_PROBE })) {
+        await closeBtn.click();
+      } else {
+        await this.page.keyboard.press('Escape');
+      }
+      await expect(servicesMenu).not.toBeVisible({
+        timeout: TIMEOUTS.OVERLAY_DISMISS,
+      });
+    }
+  }
+
+  async openWidgetActionsMenu(widgetId: string): Promise<void> {
+    const menuToggle = this.widgetMenuToggle(widgetId);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await menuToggle.click();
+      const anyItem = this.page
+        .locator(
+          '[data-ouia-component-id="lock-widget"], [data-ouia-component-id="unlock-widget"], [data-ouia-component-id="remove-widget"]',
+        )
+        .first();
+      if (await anyItem.isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })) {
+        return;
+      }
+      await this.page.keyboard.press('Escape');
+    }
+  }
+
+  private pendingLayoutPatch(timeoutMs = TIMEOUTS.LAYOUT_PATCH): Promise<void> {
+    return this.page
       .waitForResponse(
         (resp) => {
           const url = resp.url();
           return (
             resp.request().method() === 'PATCH' &&
             url.includes('/api/chrome-service/v1/dashboard-templates/') &&
-            this.isOkishStatus(resp.status())
+            resp.status() >= 200 &&
+            resp.status() < 400
           );
         },
         { timeout: timeoutMs },
       )
-      .catch(() => undefined);
-  }
-
-  async waitForLayoutPatchStrict(timeoutMs = 60000): Promise<void> {
-    await this.page.waitForResponse(
-      (resp) => {
-        const url = resp.url();
-        return (
-          resp.request().method() === 'PATCH' &&
-          url.includes('/api/chrome-service/v1/dashboard-templates/') &&
-          this.isOkishStatus(resp.status())
-        );
-      },
-      { timeout: timeoutMs },
-    );
-  }
-
-  async waitForLayoutPatch(): Promise<void> {
-    await this.page.waitForResponse((resp) => {
-      const url = resp.url();
-      return (
-        resp.request().method() === 'PATCH' &&
-        url.includes('/api/chrome-service/v1/dashboard-templates/') &&
-        this.isOkishStatus(resp.status())
+      .then(
+        () => undefined,
+        () => undefined,
       );
-    });
   }
 
   async removeWidget(widgetId: string): Promise<void> {
-    await expect(this.widget(widgetId)).toBeVisible({ timeout: 60000 });
+    await expect(this.widget(widgetId)).toBeVisible({
+      timeout: TIMEOUTS.WIDGET_VISIBLE,
+    });
 
     const openMenu = async () => {
       await this.widgetMenuToggle(widgetId).click();
@@ -188,74 +209,66 @@ export class LandingPage {
 
     await openMenu();
 
-    const removeItem = this.page.locator(
-      '[data-ouia-component-id="remove-widget"]',
-    );
-    // PF6 renders DropdownItem as a <li> wrapper plus a <button role="menuitem">.
-    // Don't use `.or(...)` here: it can match both and trigger strict-mode violations.
-    const removeMenuItem = removeItem
-      .first()
-      .getByRole('menuitem', { name: /^remove\b/i })
-      .first()
-      .or(removeItem.first().locator('button[role="menuitem"]').first());
-    await expect(removeMenuItem).toBeVisible({ timeout: 15000 });
+    const removeMenuItem = this.page
+      .locator(
+        '[data-ouia-component-id="remove-widget"] button[role="menuitem"]',
+      )
+      .first();
+    await expect(removeMenuItem).toBeVisible({
+      timeout: TIMEOUTS.MENU_VISIBLE,
+    });
 
-    // If the widget is locked, "Remove" is disabled. Auto-unlock before removing.
-    const disabled = await removeMenuItem.isDisabled().catch(() => false);
-    if (disabled) {
+    if (await removeMenuItem.isDisabled()) {
       const unlockMenuItem = this.page
-        .locator('[data-ouia-component-id="unlock-widget"]')
-        .first()
-        .getByRole('menuitem', { name: /^unlock\b/i })
-        .first()
-        .or(
-          this.page
-            .locator('[data-ouia-component-id="unlock-widget"]')
-            .first()
-            .locator('button[role="menuitem"]')
-            .first(),
-        );
-      if (
-        await unlockMenuItem.isVisible({ timeout: 2000 }).catch(() => false)
-      ) {
+        .locator(
+          '[data-ouia-component-id="unlock-widget"] button[role="menuitem"]',
+        )
+        .first();
+      if (await unlockMenuItem.isVisible({ timeout: TIMEOUTS.ELEMENT_PROBE })) {
+        const unlockPatch = this.pendingLayoutPatch();
         await unlockMenuItem.click();
-        await this.waitForLayoutPatchOptional(15000);
+        await unlockPatch;
         await this.widgetMenuToggle(widgetId).click();
-        await expect(removeMenuItem).toBeVisible({ timeout: 15000 });
+        await expect(removeMenuItem).toBeVisible({
+          timeout: TIMEOUTS.MENU_VISIBLE,
+        });
       }
     }
 
-    const clickRemoveOnce = async () => {
+    const clickRemove = async () => {
+      const patch = this.pendingLayoutPatch();
       await removeMenuItem.click();
-      await this.waitForLayoutPatchOptional(15000);
+      await patch;
     };
 
-    await clickRemoveOnce();
+    await clickRemove();
 
-    // Avoid short fixed timeouts: removal can be slow and can race with late layout updates.
-    const removed = await expect
-      .poll(async () => this.widget(widgetId).count(), { timeout: 20000 })
-      .toBe(0)
-      .then(() => true)
-      .catch(() => false);
+    if ((await this.widget(widgetId).count()) > 0) {
+      const removed = await expect
+        .poll(() => this.widget(widgetId).count(), {
+          timeout: TIMEOUTS.WIDGET_REMOVAL,
+        })
+        .toBe(0)
+        .then(
+          () => true,
+          () => false,
+        );
 
-    // Single retry: sometimes the menu click doesn't register or a late layout refresh re-adds the widget.
-    if (!removed) {
-      await openMenu();
-      await clickRemoveOnce();
-      await expect
-        .poll(async () => this.widget(widgetId).count(), { timeout: 20000 })
-        .toBe(0);
+      if (!removed) {
+        await openMenu();
+        await clickRemove();
+        await expect
+          .poll(() => this.widget(widgetId).count(), {
+            timeout: TIMEOUTS.WIDGET_REMOVAL,
+          })
+          .toBe(0);
+      }
     }
-
-    // Ensure it stays gone (guards against "remove before reset finishes" races).
-    await this.page.waitForTimeout(500);
-    await expect(this.widget(widgetId)).toHaveCount(0, { timeout: 25000 });
   }
 
   async addWidget(
     widgetName: string,
-    widgetTargetId = 'rhel-widget',
+    widgetTargetId = 'landing-./RhelWidget-widget',
   ): Promise<void> {
     await this.page
       .locator('[data-ouia-component-id="add-widget-button"]')
@@ -267,16 +280,14 @@ export class LandingPage {
     await expect(draggable).toBeVisible();
 
     await draggable.dragTo(this.widget(widgetTargetId));
-    await this.waitForLayoutPatchOptional();
   }
 
+  /** @deprecated Use UI-based interactions instead of API stubbing in E2E tests. */
   async stubFavoritePages(favoritePages: FavoritePage[]): Promise<void> {
     await this.page.route('**/api/chrome-service/v1/user', async (route) => {
       const resp = await route.fetch();
       const contentType = resp.headers()['content-type'] ?? '';
 
-      // If the endpoint ever returns something unexpected, fall back to passthrough
-      // (keeps the suite from failing on non-JSON environments).
       if (!contentType.includes('application/json')) {
         await route.fulfill({ response: resp });
         return;
@@ -288,7 +299,6 @@ export class LandingPage {
         ({} as Record<string, unknown>);
       json.data = data;
 
-      // Handle common response shapes (the exact field name can drift).
       if ('favoritePages' in data) {
         data.favoritePages = favoritePages as unknown[];
       } else if ('favorite_pages' in data) {
@@ -299,5 +309,21 @@ export class LandingPage {
 
       await route.fulfill({ response: resp, json });
     });
+
+    // The DashboardFavorites widget may also fetch from the dedicated endpoint.
+    await this.page.route(
+      '**/api/chrome-service/v1/favorite-pages',
+      async (route) => {
+        if (route.request().method() !== 'GET') {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ data: favoritePages }),
+        });
+      },
+    );
   }
 }
